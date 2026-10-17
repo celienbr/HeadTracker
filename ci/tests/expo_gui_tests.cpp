@@ -1,5 +1,6 @@
 #include <QtTest>
 #include <QAction>
+#include <QComboBox>
 #include <QTemporaryDir>
 #include <QPushButton>
 #include <QJsonDocument>
@@ -15,24 +16,61 @@ class ExpoGuiTests : public QObject {
 private slots:
     void dialogAcceptCancel() {
         TrackerSettings ts;
+        ts.setAllData(ts.allData());
+        QVERIFY(ts.supportsExpo());
+        QVERIFY(ts.supportsDeadzone());
+        const uint8_t initial=ts.getPanExpo();
         ExpoDialog cancel(ts);
         cancel.show();
-        cancel.findChild<QSpinBox*>("panExpo")->setValue(99);
-        QTest::mouseClick(cancel.findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Cancel),Qt::LeftButton);
-        QVERIFY(!cancel.applyTo(ts)); QCOMPARE(ts.getPanExpo(),uint8_t(0));
-        ExpoDialog ok(ts); ok.show();
-        auto *p=ok.findChild<QSpinBox*>("panExpo");
-        auto *t=ok.findChild<QSpinBox*>("tiltExpo");
-        auto *r=ok.findChild<QSpinBox*>("rollExpo");
-        p->setValue(101); QCOMPARE(p->value(),100);
-        t->setValue(-1); QCOMPARE(t->value(),0);
-        p->setValue(51); t->setValue(36); r->setValue(100);
-        QTest::mouseClick(ok.findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok),Qt::LeftButton);
-        QVERIFY(ok.applyTo(ts)); QCOMPARE(ts.getPanExpo(),uint8_t(51));
-        QCOMPARE(ts.getTltExpo(),uint8_t(36)); QCOMPARE(ts.getRllExpo(),uint8_t(100));
+        auto *c=cancel.findChild<QSpinBox*>("expoPercent");
+        auto *selectCancel=cancel.findChild<QComboBox*>("curveAxis");
+        QVERIFY(c); QVERIFY(selectCancel);
+        c->setValue(99);
+        QTest::mouseClick(cancel.findChild<QDialogButtonBox*>()->button(
+            QDialogButtonBox::Cancel),Qt::LeftButton);
+        QVERIFY(!cancel.applyTo(ts));
+        QCOMPARE(ts.getPanExpo(),initial);
+
+        ExpoDialog ok(ts);
+        ok.show();
+        auto *axis=ok.findChild<QComboBox*>("curveAxis");
+        auto *expo=ok.findChild<QSpinBox*>("expoPercent");
+        auto *min=ok.findChild<QSpinBox*>("curveMin");
+        auto *max=ok.findChild<QSpinBox*>("curveMax");
+        auto *center=ok.findChild<QSpinBox*>("curveCenter");
+        auto *left=ok.findChild<QSpinBox*>("deadzoneLeft");
+        auto *right=ok.findChild<QSpinBox*>("deadzoneRight");
+        QVERIFY(axis);QVERIFY(expo);QVERIFY(min);QVERIFY(max);
+        QVERIFY(center);QVERIFY(left);QVERIFY(right);
+        QCOMPARE(axis->count(),3);
+        expo->setValue(101);QCOMPARE(expo->value(),100);
+        expo->setValue(51);
+        min->setValue(1060);max->setValue(1930);center->setValue(1510);
+        left->setValue(38);right->setValue(22);
+        axis->setCurrentIndex(1);expo->setValue(36);
+        axis->setCurrentIndex(2);expo->setValue(100);
+        axis->setCurrentIndex(0);
+        QCOMPARE(expo->value(),51);
+        QCOMPARE(min->value(),1060);
+        QCOMPARE(max->value(),1930);
+        QCOMPARE(center->value(),1510);
+        QCOMPARE(left->value(),38);
+        QCOMPARE(right->value(),22);
+        // No modifications before explicit OK.
+        QCOMPARE(ts.getPanExpo(),initial);
+        QTest::mouseClick(ok.findChild<QDialogButtonBox*>()->button(
+            QDialogButtonBox::Ok),Qt::LeftButton);
+        QVERIFY(ok.applyTo(ts));
+        QCOMPARE(ts.getPanExpo(),uint8_t(51));
+        QCOMPARE(ts.getTltExpo(),uint8_t(36));
+        QCOMPARE(ts.getRllExpo(),uint8_t(100));
+        QCOMPARE(ts.getPan_Min(),uint16_t(1060));
+        QCOMPARE(ts.getPan_Max(),uint16_t(1930));
+        QCOMPARE(ts.getPan_Cnt(),uint16_t(1510));
+        QCOMPARE(ts.getPanDZLow(),uint16_t(38));
+        QCOMPARE(ts.getPanDZHigh(),uint16_t(22));
         ExpoDialog again(ts);
-        QCOMPARE(again.findChild<QSpinBox*>("panExpo")->value(),51);
-        QCOMPARE(again.findChild<QSpinBox*>("tiltExpo")->value(),36);
+        QCOMPARE(again.findChild<QSpinBox*>("expoPercent")->value(),51);
     }
     void iniAndCompatibility() {
         QTemporaryDir dir; QVERIFY(dir.isValid());
