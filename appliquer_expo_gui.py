@@ -98,6 +98,7 @@ def main():
     subprocess.run([sys.executable, str(ASSETS / "apply_deadzone.py"), str(repo)], check=True)
     subprocess.run([sys.executable, str(ASSETS / "apply_deadzone_graph.py"), str(repo)], check=True)
     subprocess.run([sys.executable, str(ASSETS / "apply_english_ui.py"), str(repo)], check=True)
+    subprocess.run([sys.executable, str(ASSETS / "apply_live_graph.py"), str(repo)], check=True)
     subprocess.run([sys.executable, "-c",
                     "import buildguisettings; import buildfwsettings; import buildfwbtsettings"],
                    cwd=repo / "settings", check=True)
