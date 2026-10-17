@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <limits>
+#include <initializer_list>
 #include "expo_deadzone.h"
 
 // Firmware zone-morte: independent directions, full endpoints,
