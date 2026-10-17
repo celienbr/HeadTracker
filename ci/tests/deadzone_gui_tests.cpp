@@ -142,8 +142,30 @@ private slots:
         QVERIFY(plot); QVERIFY(selector); QVERIFY(title);
         QVERIFY(expo); QVERIFY(left); QVERIFY(right); QVERIFY(center);
         QCOMPARE(selector->count(),3);
+        QCOMPARE(dialog.windowTitle(),QString("Curve Settings"));
         QCOMPARE(plot->currentExpo(),38);
         QCOMPARE(plot->currentDeadLeft(),uint16_t(40));
+        QVERIFY(!plot->hasActualOutput()); // No invented measurement.
+        QVERIFY(QMetaObject::invokeMethod(&model,"ppmOutChanged",
+           Qt::DirectConnection,Q_ARG(int,1450),Q_ARG(int,1530),Q_ARG(int,1620)));
+        QVERIFY(plot->hasActualOutput());
+        QCOMPARE(plot->currentActualOutput(),1620); // Pan channel from live signal.
+        // Ensure all required colors are *actually painted*, not just described.
+        QImage img=plot->grab().toImage().convertToFormat(QImage::Format_ARGB32);
+        int greens=0,blues=0,reds=0,blacks=0,yellows=0;
+        for(int y=0;y<img.height();++y) for(int x=0;x<img.width();++x) {
+            QColor c=img.pixelColor(x,y);
+            if(c.green()>110 && c.red()<60 && c.blue()<90) ++greens;
+            if(c.blue()>170 && c.red()<75 && c.green()<150) ++blues;
+            if(c.red()>180 && c.green()<100 && c.blue()<100) ++reds;
+            if(c.red()<40 && c.green()<40 && c.blue()<40) ++blacks;
+            if(c.red()>220 && c.green()>180 && c.blue()<65) ++yellows;
+        }
+        QVERIFY2(greens>12,"Missing green used curve");
+        QVERIFY2(blues>12,"Missing solid blue limit lines");
+        QVERIFY2(reds>12,"Missing red center");
+        QVERIFY2(blacks>12,"Missing black unused travel");
+        QVERIFY2(yellows>12,"Missing yellow live position diamond");
         QCOMPARE(plot->currentDeadRight(),uint16_t(13));
         QCOMPARE(plot->outputFor(-15),uint16_t(1510));
         QCOMPARE(plot->outputFor(11),uint16_t(1510));
@@ -156,6 +178,7 @@ private slots:
         center->setValue(1520);
         QCOMPARE(plot->outputFor(-20),uint16_t(1520));
         selector->setCurrentIndex(2);
+        QCOMPARE(plot->currentActualOutput(),1530); // Roll follows own stream.
         QCOMPARE(plot->currentExpo(),72);
         QCOMPARE(plot->currentDeadLeft(),uint16_t(9));
         QCOMPARE(plot->currentDeadRight(),uint16_t(63));
