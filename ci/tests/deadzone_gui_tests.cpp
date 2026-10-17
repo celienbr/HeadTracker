@@ -94,8 +94,11 @@ private slots:
         auto *lowPopup=bar.findChild<PopupSlider*>("deadLowPopup");
         auto *highPopup=bar.findChild<PopupSlider*>("deadHighPopup");
         QVERIFY(lowPopup); QVERIFY(highPopup);
-        const int lowX=x-qRound(bar.deadLowValue()*double(bar.width()-10)/1024.);
-        const QPoint amberLow(lowX,qRound(bar.height()*0.25));
+        bar.repaint();
+        const QPoint amberLow=bar.deadLowHandleRect().center().toPoint();
+        qInfo() << "Deadzone low" << bar.deadLowValue() << "click" << amberLow
+                << "hitbox" << bar.deadLowHandleRect();
+        QVERIFY(bar.deadLowHandleRect().contains(amberLow));
         QTest::mouseClick(&bar,Qt::LeftButton,Qt::NoModifier,amberLow);
         QVERIFY(lowPopup->isVisible());
         auto *lowField=lowPopup->findChild<QDoubleSpinBox*>();
@@ -104,8 +107,9 @@ private slots:
         QCOMPARE(bar.deadLowValue(),51);
         QCOMPARE(bar.deadHighValue()>0,true);
         QCOMPARE(lowSpy.count(),2);
-        const int highX=x+qRound(bar.deadHighValue()*double(bar.width()-10)/1024.);
-        const QPoint amberHigh(highX,qRound(bar.height()*0.75));
+        bar.repaint();
+        const QPoint amberHigh=bar.deadHighHandleRect().center().toPoint();
+        QVERIFY(bar.deadHighHandleRect().contains(amberHigh));
         QTest::mouseClick(&bar,Qt::LeftButton,Qt::NoModifier,amberHigh);
         QVERIFY(highPopup->isVisible());
         auto *highField=highPopup->findChild<QDoubleSpinBox*>();
