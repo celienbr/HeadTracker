@@ -8,6 +8,7 @@
 #include "boardjson.h"
 #include "mainwindow.h"
 #include "firmwarewizard.h"
+#include "ucrc16lib.h"
 
 class ExpoGuiTests : public QObject {
     Q_OBJECT
@@ -57,23 +58,39 @@ private slots:
         ts.setPanExpo(71); ts.setTltExpo(22); ts.setRllExpo(13);
         // This is the same method invoked by the Save Settings button.
         board.saveToNVM();
+        QVERIFY(!board.isBoardSavedToRAM()); QVERIFY(!board.isBoardSavedToNVM());
         QByteArray set=board.dataout(); QVERIFY(set.contains("\"Cmd\":\"Set\""));
         QVERIFY(set.contains("\"panexpo\":71")); QVERIFY(set.contains("\"tltexpo\":22"));
         QVERIFY(!set.contains("Flash"));
         QByteArray nak(1,char(0x15)); board.dataIn(nak); QCOMPARE(board.dataout(),set);
         QByteArray ack(1,char(0x06)); board.dataIn(ack);
         QByteArray flash=board.dataout(); QVERIFY(flash.contains("\"Cmd\":\"Flash\""));
+        QVERIFY(board.isBoardSavedToRAM()); QVERIFY(!board.isBoardSavedToNVM());
         board.dataIn(nak); QCOMPARE(board.dataout(),flash);
         board.dataIn(ack); QVERIFY(board.dataout().isEmpty());
+        QVERIFY(board.isBoardSavedToNVM());
         // Device response, serialized as on the wire (framing/CRC bytes supplied).
         QByteArray payload="{\"Cmd\":\"Set\",\"panexpo\":12,\"tltexpo\":34,\"rllexpo\":56}";
-        QByteArray response=QByteArray(1,char(2))+payload+QByteArray(2,char(0x7f))+QByteArray(1,char(3));
+        uint16_t crc=BoardJson::escapeCRC(uCRC16Lib::calculate(payload.data(),payload.size()));
+        QByteArray response=QByteArray(1,char(2))+payload+QByteArray(1,char(crc&255))+QByteArray(1,char(crc>>8))+QByteArray(1,char(3));
         board.dataIn(response); QCOMPARE(ts.getPanExpo(),uint8_t(12)); QCOMPARE(ts.getTltExpo(),uint8_t(34)); QCOMPARE(ts.getRllExpo(),uint8_t(56));
+        response[response.size()-3] = char(response[response.size()-3]^0x11);
+        ts.setPanExpo(99); board.dataIn(response); QCOMPARE(ts.getPanExpo(),uint8_t(99));
         board.disconnected();
+    }
+    void lostAckIsBounded() {
+        TrackerSettings ts; ts.setAllData(ts.allData()); ts.setDataMatched();
+        BoardJson board(&ts); QSignalSpy failure(&board,&BoardJson::paramSendFailure);
+        ts.setPanExpo(65); board.saveToRAM(); auto packet=board.dataout();
+        QTest::qWait(600); QCOMPARE(board.dataout(),packet);
+        QTRY_COMPARE_WITH_TIMEOUT(failure.count(),1,6000);
+        QVERIFY(!board.isBoardSavedToRAM());
+        board.disconnected(); QVERIFY(board.dataout().isEmpty());
     }
     void mainWindowAndWizard() {
         MainWindow window; window.show();
         QVERIFY(QTest::qWaitForWindowExposed(&window));
+        QVERIFY(window.grab().save("../../../evidence/main-window.png"));
         QVERIFY(window.findChild<QPushButton*>("cmdConnect"));
         QVERIFY(window.findChild<QPushButton*>("cmdSaveNVM"));
         auto *action=window.findChild<QAction*>("expoAction"); QVERIFY(action);

@@ -81,6 +81,56 @@ patch("gui/src/boardjson.cpp", "        jsonqueue.enqueue(lastjson);", "        
 patch("gui/src/boardjson.cpp", "    // Add serial data to the TX buffer, emit a signal it's ready",
       "    lastjson = packet;\n    // Add serial data to the TX buffer, emit a signal it's ready")
 
+# v2.40 declared an ACK timeout but never connected one. Bound lost-ACK retries.
+patch("gui/src/boardjson.h", "    QTimer updatesettingstmr;", "    QTimer updatesettingstmr;\n    QTimer ackTimer;")
+patch("gui/src/boardjson.cpp", "    trkset = ts;", """    trkset = ts;
+    ackTimer.setSingleShot(true);
+    ackTimer.setInterval(ACKNAK_TIMEOUT);
+    connect(&ackTimer, &QTimer::timeout, this, &BoardJson::nakError);""")
+patch("gui/src/boardjson.cpp", "void BoardJson::dataIn(QByteArray &data)\n{",
+      "void BoardJson::dataIn(QByteArray &data)\n{\n    if (data.isEmpty()) return;")
+patch("gui/src/boardjson.cpp", "        QByteArray crcs = data.mid(data.length()-3,2);",
+      "        if (data.size() < 5) return;\n        QByteArray crcs = data.mid(data.length()-3,2);")
+patch("gui/src/boardjson.cpp", "        //uint16_t crc = crcs[0] << 8 | crcs[1];",
+      "        uint16_t crc = uint8_t(crcs[0]) | (uint16_t(uint8_t(crcs[1])) << 8);")
+patch("gui/src/boardjson.cpp", "        //uint crc2 = escapeCRC(uCRC16Lib::calculate(stripped.data(), stripped.length()));\n        /*if(crc != crc2) {\n            qDebug() << \"CRC Fault\" << crc << crc2;\n        } else {*/\n            parseIncomingJSON(QJsonDocument::fromJson(stripped).object().toVariantMap());\n        //}",
+      """        uint16_t crc2 = escapeCRC(uCRC16Lib::calculate(stripped.data(), stripped.length()));
+        if (crc != crc2) {
+            emit addToLog("ERROR: Incoming JSON CRC mismatch; ignored\\n");
+            return;
+        }
+        parseIncomingJSON(QJsonDocument::fromJson(stripped).object().toVariantMap());""")
+patch("gui/src/boardjson.cpp", "        // Clear the fault counter\n        jsonwaitingack = 0;",
+      """        if (jsonwaitingack == 0) return; // Ignore unsolicited/duplicate ACK.
+        ackTimer.stop();
+        const QString acknowledged = QJsonDocument::fromJson(lastjson.mid(1,lastjson.size()-6)).object()["Cmd"].toString();
+        bool queuedSet = false;
+        for (const auto &pending : jsonqueue)
+            if (QJsonDocument::fromJson(pending.mid(1,pending.size()-6)).object()["Cmd"].toString() == "Set") queuedSet = true;
+        if (acknowledged == "Set") {
+            savedToRAM = !queuedSet;
+            emit paramSendComplete();
+        }
+        // This ACK confirms receipt only; physical flash must be checked after reboot.
+        if (acknowledged == "Flash") savedToNVM = !queuedSet;
+        jsonwaitingack = 0;""")
+patch("gui/src/boardjson.cpp", "            jsonwaitingack = 1;\n            emit serialTxReady();",
+      "            jsonwaitingack = 1;\n            ackTimer.start();\n            emit serialTxReady();")
+patch("gui/src/boardjson.cpp", "    savedToRAM = true;\n    savedToNVM = false;",
+      "    savedToRAM = false;\n    savedToNVM = false;")
+patch("gui/src/boardjson.cpp", '    sendSerialJSON("Flash");\n    savedToNVM = true;',
+      '    savedToNVM = false;\n    sendSerialJSON("Flash");')
+patch("gui/src/boardjson.cpp", "void BoardJson::startData()\n{", "void BoardJson::startData()\n{\n    ackTimer.stop();")
+patch("gui/src/boardjson.cpp", "void BoardJson::disconnected()\n{",
+      "void BoardJson::disconnected()\n{\n    ackTimer.stop();\n    serialDataOut.clear();")
+patch("gui/src/boardjson.cpp", "    jsonwaitingack = 1; // Set as faulted until ACK returned",
+      "    jsonwaitingack = 1; // Set as faulted until ACK returned\n    ackTimer.start();")
+patch("gui/src/boardjson.cpp", "void BoardJson::nakError()\n{",
+      "void BoardJson::nakError()\n{\n    if (jsonwaitingack == 0) return;\n    ackTimer.stop();")
+patch("gui/src/boardjson.cpp", "        // Pause a bit, give time for device to catch up\n        Sleep(TX_FAULT_PAUSE);",
+      "        // Nonblocking, bounded retry of the outstanding packet.")
+patch("gui/src/boardjson.cpp", "        jsonwaitingack++;", "        jsonwaitingack++;\n        ackTimer.start();")
+
 # Recenter-on-tilt is an input gesture; Expo must not change its threshold.
 patch("firmware/src/src/sense.cpp", "    // Reset on tilt",
       '''    const uint16_t rollout_for_reset = expoChannel(rollout, trkset.getRll_Cnt(),

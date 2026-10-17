@@ -127,8 +127,19 @@ jobs:
           Pop-Location
           New-Item -ItemType Directory output,evidence | Out-Null
           Copy-Item HT/gui/src/release/HeadTracker.exe output/
-          windeployqt --release --compiler-runtime --no-translations output/HeadTracker.exe
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # Qt 6.4.1/aqt: windeployqt cannot resolve its platform plugin path.
+          # Copy the explicit runtime closure, then exercise it with a clean PATH.
+          $qtbin = Join-Path $env:QT_ROOT_DIR 'bin'
+          $qtplugins = Join-Path $env:QT_ROOT_DIR 'plugins'
+          foreach ($dll in @('Qt6Core.dll','Qt6Gui.dll','Qt6Network.dll','Qt6Widgets.dll','Qt6SerialPort.dll','Qt6OpenGL.dll','Qt6OpenGLWidgets.dll','Qt6Svg.dll')) {
+            Copy-Item (Join-Path $qtbin $dll) output/
+          }
+          New-Item -ItemType Directory output/platforms | Out-Null
+          Copy-Item (Join-Path $qtplugins 'platforms/qwindows.dll') output/platforms/
+          foreach ($plugin in @('imageformats','styles','tls','networkinformation')) {
+            $src = Join-Path $qtplugins $plugin
+            if (Test-Path $src) {Copy-Item $src (Join-Path output $plugin) -Recurse}
+          }
           $compilerBin=Split-Path $compiler
           foreach ($runtime in @('libgcc_s_seh-1.dll','libstdc++-6.dll','libwinpthread-1.dll')) {
             Copy-Item (Join-Path $compilerBin $runtime) output/
