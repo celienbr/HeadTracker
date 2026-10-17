@@ -288,3 +288,70 @@ jobs:
         with:
           name: HeadTracker-Expo-Installer-Tests
           path: evidence/
+
+
+  publish-community-release:
+    name: Publish verified community preview
+    needs: [native-tests, firmware, gui, installer, installer-test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/curve-settings-live-graph' && github.event.head_commit.message == 'Publish community release v2.40-curve-settings.1'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: HeadTracker-Expo-Setup
+          path: downloaded/setup
+      - uses: actions/download-artifact@v4
+        with:
+          name: HeadTracker-Expo-Windows-Portable
+          path: downloaded/portable
+      - uses: actions/download-artifact@v4
+        with:
+          name: HeadTracker-Expo-Firmwares
+          path: downloaded/firmwares
+      - uses: actions/download-artifact@v4
+        with:
+          name: HeadTracker-Expo-Windows-Tests
+          path: downloaded/tests
+      - name: Validate and prepare permanent downloadable packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'celienbr/HeadTracker'
+          test "$GITHUB_REF_NAME" = 'curve-settings-live-graph'
+          test "$(tr -d '\r\n' < downloaded/portable/SOURCE_COMMIT.txt)" = "$GITHUB_SHA"
+          test "$(tr -d '\r\n' < downloaded/firmwares/SOURCE_COMMIT.txt)" = "$GITHUB_SHA"
+          ( cd downloaded/setup && sha256sum -c SHA256SUMS.txt )
+          for f in downloaded/setup/HeadTracker-Expo-Setup.exe downloaded/portable/HeadTracker.exe downloaded/portable/LICENSE.txt downloaded/firmwares/Nano33BLE.bin downloaded/firmwares/Nano33BLE-Rev2.bin; do test -s "$f"; done
+          mkdir -p release
+          if [ -s /usr/share/common-licenses/LGPL-3 ]; then
+            cp /usr/share/common-licenses/LGPL-3 release/LICENSE-LGPL-3.0.txt
+          else
+            curl -fL --retry 3 -sS https://www.gnu.org/licenses/lgpl-3.0.txt -o release/LICENSE-LGPL-3.0.txt
+          fi
+          test -s release/LICENSE-LGPL-3.0.txt
+          cp release/LICENSE-LGPL-3.0.txt downloaded/portable/LICENSE-LGPL-3.0.txt
+          cp THIRD_PARTY_NOTICES.md downloaded/portable/THIRD_PARTY_NOTICES.md
+          cp downloaded/setup/HeadTracker-Expo-Setup.exe release/HeadTracker-Curve-Settings-Windows-Setup.exe
+          cp downloaded/firmwares/Nano33BLE.bin release/HeadTracker-Curve-Settings-Nano33BLE.bin
+          cp downloaded/firmwares/Nano33BLE-Rev2.bin release/HeadTracker-Curve-Settings-Nano33BLE-Rev2.bin
+          ( cd downloaded/portable && zip -q -r ../../release/HeadTracker-Curve-Settings-Windows-Portable.zip . )
+          cp docs/QUICK_START_EN.md release/QUICK_START_EN.md
+          cp THIRD_PARTY_NOTICES.md release/THIRD_PARTY_NOTICES.md
+          if [ -s downloaded/tests/english-expo-dialog.png ]; then cp downloaded/tests/english-expo-dialog.png release/Curve-Settings-Screenshot.png; fi
+          printf 'Source commit: %s\nPinned upstream: a9ea5ca6e58a34c434aad5dc7ce641dbf03741bb\nVerified CI: https://github.com/%s/actions/runs/%s\n' "$GITHUB_SHA" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" > release/BUILD_PROVENANCE.txt
+          ( cd release && sha256sum HeadTracker-Curve-Settings-Windows-Setup.exe HeadTracker-Curve-Settings-Windows-Portable.zip HeadTracker-Curve-Settings-Nano33BLE.bin HeadTracker-Curve-Settings-Nano33BLE-Rev2.bin > SHA256SUMS.txt )
+          cat release/SHA256SUMS.txt
+      - name: Create tagged public GitHub pre-release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag='v2.40-curve-settings.1'
+          if gh release view "$tag" >/dev/null 2>&1; then echo 'Release already exists; refusing overwrite.'; exit 1; fi
+          gh release create "$tag" release/* --target "$GITHUB_SHA" --title 'HeadTracker v2.40 - Curve Settings Edition (Community Preview)' --notes-file docs/RELEASE_NOTES_EN.md --prerelease --latest=false
+          gh release view "$tag" --json name,url,isPrerelease,assets --jq '{name,url,isPrerelease,assets:[.assets[].name]}'
