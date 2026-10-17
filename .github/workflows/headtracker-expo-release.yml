@@ -1,0 +1,114 @@
+name: HeadTracker Expo Build
+on:
+  push:
+    branches: [expo-v2.40]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+    container:
+      image: docker.io/dlktdr/ht_zephyr:3.7.1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: modification
+      - uses: actions/checkout@v4
+        with:
+          repository: headtracker/HeadTracker
+          ref: v2.40
+          path: HT
+          submodules: recursive
+          fetch-depth: 0
+      - name: Modify source
+        run: |
+          . /root/zephyr_py_env/.venv/bin/activate
+          python modification/appliquer_expo_gui.py HT
+      - name: Build firmwares
+        run: |
+          . /root/zephyr_py_env/.venv/bin/activate
+          export ZEPHYR_BASE=/root/zephyr/zephyr
+          cd /root/zephyr-sdk && ./setup.sh -c
+          cd /src/HT/firmware/src
+          mkdir -p /src/firmwares
+          west build -p always -b arduino_nano_33_ble
+          cp build/zephyr/zephyr.bin /src/firmwares/Nano33BLE.bin
+          west build -p always -b arduino_nano_33_ble -- -DBOARD_REV2=y
+          cp build/zephyr/zephyr.bin /src/firmwares/Nano33BLE-Rev2.bin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HeadTracker-Expo-Firmwares
+          path: firmwares/*.bin
+  gui:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: modification
+      - uses: actions/checkout@v4
+        with:
+          repository: headtracker/HeadTracker
+          ref: v2.40
+          path: HT
+          submodules: recursive
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.4.1'
+          target: desktop
+          arch: win64_mingw
+          modules: qtserialport
+      - uses: egor-tensin/setup-mingw@v2
+        with:
+          platform: x64
+      - name: Compile Qt
+        shell: pwsh
+        run: |
+          python modification/appliquer_expo_gui.py HT
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Push-Location HT/gui/src
+          qmake HeadTracker.pro
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          mingw32-make -j2
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Pop-Location
+          mkdir output
+          Copy-Item HT/gui/src/release/* output/ -Recurse -Force
+          windeployqt --release --compiler-runtime output/HeadTracker.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item HT/gui/bin/bossac.exe output/ -ErrorAction SilentlyContinue
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HeadTracker-Expo-Windows-Portable
+          path: output/
+  installer:
+    needs: [firmware, gui]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: modification
+      - uses: actions/download-artifact@v4
+        with:
+          name: HeadTracker-Expo-Windows-Portable
+          path: package/gui
+      - uses: actions/download-artifact@v4
+        with:
+          name: HeadTracker-Expo-Firmwares
+          path: package/firmware
+      - name: Create setup
+        shell: pwsh
+        run: |
+          choco install nsis -y --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item modification/ci/installateur.nsi .
+          & 'C:\Program Files (x86)\NSIS\makensis.exe' installateur.nsi
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HeadTracker-Expo-Setup
+          path: HeadTracker-Expo-Setup.exe
