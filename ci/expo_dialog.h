@@ -94,7 +94,7 @@ public:
                .arg(c.center).arg(c.min).arg(c.max));
     }
 private:
-    struct Curve { uint16_t center=1500,min=1050,max=1950,deadLow=0,deadHigh=0; };
+    struct Curve { uint16_t center,min,max,deadLow,deadHigh; };
     Curve curves[3];
     QSpinBox *spins[3]={nullptr,nullptr,nullptr};
     QComboBox *axis=nullptr;
