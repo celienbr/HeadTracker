@@ -10,6 +10,10 @@
 #include "firmwarewizard.h"
 #include "ucrc16lib.h"
 #include "servominmax.h"
+#include <QDoubleSpinBox>
+#include <QComboBox>
+#include <QLabel>
+#include "expo_curve_preview.h"
 
 class DeadzoneGuiTests : public QObject {
     Q_OBJECT
@@ -86,8 +90,71 @@ private slots:
         QTest::mouseRelease(&bar,Qt::LeftButton,Qt::NoModifier,newHigh);
         QVERIFY(bar.deadHighValue()>0);
         QCOMPARE(highSpy.count(),1);
+        // A single click opens exactly the same yellow PopupSlider as the red center.
+        auto *lowPopup=bar.findChild<PopupSlider*>("deadLowPopup");
+        auto *highPopup=bar.findChild<PopupSlider*>("deadHighPopup");
+        QVERIFY(lowPopup); QVERIFY(highPopup);
+        const int lowX=x-qRound(bar.deadLowValue()*double(bar.width()-10)/1024.);
+        const QPoint amberLow(lowX,qRound(bar.height()*0.25));
+        QTest::mouseClick(&bar,Qt::LeftButton,Qt::NoModifier,amberLow);
+        QVERIFY(lowPopup->isVisible());
+        auto *lowField=lowPopup->findChild<QDoubleSpinBox*>();
+        QVERIFY(lowField);
+        lowField->setValue(51);
+        QCOMPARE(bar.deadLowValue(),51);
+        QCOMPARE(bar.deadHighValue()>0,true);
+        QCOMPARE(lowSpy.count(),2);
+        const int highX=x+qRound(bar.deadHighValue()*double(bar.width()-10)/1024.);
+        const QPoint amberHigh(highX,qRound(bar.height()*0.75));
+        QTest::mouseClick(&bar,Qt::LeftButton,Qt::NoModifier,amberHigh);
+        QVERIFY(highPopup->isVisible());
+        auto *highField=highPopup->findChild<QDoubleSpinBox*>();
+        QVERIFY(highField);
+        highField->setValue(82);
+        QCOMPARE(bar.deadHighValue(),82);
+        QCOMPARE(bar.deadLowValue(),51);
+        QCOMPARE(highSpy.count(),2);
         QVERIFY(bar.grab().save("../../../evidence/deadzone-sliders.png"));
         bar.close();
+    }
+    void curvePreviewFollowsSelectionAndExpo() {
+        TrackerSettings model;
+        model.setPanExpo(38); model.setTltExpo(23); model.setRllExpo(72);
+        model.setPan_Cnt(1510); model.setPan_Min(1020); model.setPan_Max(1940);
+        model.setPanDZLow(40); model.setPanDZHigh(13);
+        model.setTltDZLow(5); model.setTltDZHigh(25);
+        model.setRllDZLow(9); model.setRllDZHigh(63);
+        ExpoDialog dialog(model);
+        dialog.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&dialog));
+        auto *plot=dialog.findChild<ExpoCurvePreview*>("expoCurvePreview");
+        auto *selector=dialog.findChild<QComboBox*>("curveAxis");
+        auto *description=dialog.findChild<QLabel*>("curveDescription");
+        QVERIFY(plot); QVERIFY(selector); QVERIFY(description);
+        QCOMPARE(selector->count(),3);
+        QCOMPARE(plot->currentExpo(),38);
+        QCOMPARE(plot->currentDeadLeft(),uint16_t(40));
+        QCOMPARE(plot->currentDeadRight(),uint16_t(13));
+        QCOMPARE(plot->outputFor(-15),uint16_t(1510)); // left flat band
+        QCOMPARE(plot->outputFor(11),uint16_t(1510));  // right flat band
+        QVERIFY(plot->outputFor(90)>1510);
+        QVERIFY(description->text().contains("40"));
+        auto *pan=dialog.findChild<QSpinBox*>("panExpo"); QVERIFY(pan);
+        pan->setValue(80);
+        QCOMPARE(plot->currentExpo(),80);
+        selector->setCurrentIndex(2);
+        QCOMPARE(plot->currentExpo(),72);
+        QCOMPARE(plot->currentDeadLeft(),uint16_t(9));
+        QCOMPARE(plot->currentDeadRight(),uint16_t(63));
+        QVERIFY(plot->grab().save("../../../evidence/deadzone-curve-preview.png"));
+        selector->setCurrentIndex(1);
+        QCOMPARE(plot->currentExpo(),23);
+        QCOMPARE(plot->currentDeadRight(),uint16_t(25));
+        // Preview must not modify the device model before OK.
+        QCOMPARE(model.getPanExpo(),uint8_t(38));
+        dialog.reject();
+        QVERIFY(!dialog.applyTo(model));
+        QCOMPARE(model.getPanExpo(),uint8_t(38));
     }
     void protocolWithDeadzone() {
         TrackerSettings ts;
