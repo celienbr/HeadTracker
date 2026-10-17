@@ -1,7 +1,7 @@
-name: HeadTracker Expo Build
+name: HeadTracker Expo Deadzone Build
 on:
   push:
-    branches: [expo-v2.40]
+    branches: [expo-deadzone]
   workflow_dispatch:
 permissions:
   contents: read
@@ -27,9 +27,12 @@ jobs:
           mkdir -p evidence
           g++ -std=c++11 -O2 -fsanitize=undefined,float-cast-overflow -fno-sanitize-recover=all -I HT/firmware/src/src -I HT/firmware/src/src/include -I HT/firmware/src/third-party/ArduinoJson/src modification/ci/tests/native_tests.cpp -o native-tests
           ./native-tests | tee evidence/native-tests.txt
+          g++ -std=c++11 -O2 -fsanitize=undefined,float-cast-overflow -fno-sanitize-recover=all -I HT/firmware/src/src modification/ci/tests/deadzone_tests.cpp -o deadzone-tests
+          ./deadzone-tests | tee evidence/deadzone-tests.txt
           python3 modification/ci/tests/firmware_wire_test.py HT/firmware/src/src/serial.cpp HT/firmware/src/src | tee evidence/firmware-wire-test.txt
           git -C HT diff > evidence/applied.patch
           cp HT/firmware/src/src/expo_curve.h evidence/
+          cp HT/firmware/src/src/expo_deadzone.h evidence/
           cp HT/gui/src/expo_dialog.h evidence/
           cp HT/firmware/src/src/include/flash_settings.h evidence/
       - uses: actions/upload-artifact@v4
@@ -254,7 +257,7 @@ jobs:
           for($i=0;$i -lt 40 -and (Test-Path "$dir/HeadTracker.exe");$i++) {Start-Sleep -Milliseconds 250}
           if(Test-Path "$dir/HeadTracker.exe") {throw 'Executable remains after uninstall'}
           if(!(Test-Path "$dir/user-config.ini")) {throw 'Uninstall deleted user file'}
-          if(Test-Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\HeadTrackerExpo') {throw 'Uninstall registry remains'}
+          if(Test-Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\HeadTrackerExpoDeadzone') {throw 'Uninstall registry remains'}
           @{result='PASS';installed=$true;payloadHashesMatch=$true;uninstalled=$true;userFilePreserved=$true;hardwareAccess=$false} | ConvertTo-Json | Set-Content evidence/installer-test.json
       - uses: actions/download-artifact@v4
         with:
