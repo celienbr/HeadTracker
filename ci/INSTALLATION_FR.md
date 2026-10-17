@@ -1,3 +1,20 @@
+# HeadTracker v2.40 Expo + Deadzone — version experimentale
+
+**Cette version s'installe séparément de HeadTracker Expo.** Le logiciel et le firmware originaux de la branche `expo-v2.40` restent disponibles sans modification.
+
+## Reglage des six poignees
+
+Sur les trois barres de butees, les poignees BLEUES reglent les limites, la ROUGE le centre, les deux AMBRE reglent les bords de la zone morte (en microsecondes de commande).
+La poignee superieure ambre est le cote inferieur du signal ; la poignee inferieure ambre est le cote superieur. Les deux restent distinctes meme a 0 us.
+Cliquer-glisser horizontalement pour ajuster. Double-cliquer sur une poignee ambre pour saisir une valeur exacte. Le survol affiche sa valeur.
+Plage par cote : 0 a 250 us, limitee par la distance a la butee correspondante. Valeur initiale 0 us de chaque cote.
+Entre les deux seuils, la sortie reste au centre. Au-dela, la commande restante est reproportionnee pour conserver les deux butees et appliquer la courbe Expo existante.
+Apres modification, cliquer **Save Settings**, debrancher puis rebrancher et verifier la persistance.
+Si la carte est sur un ancien firmware Expo (sans Deadzone), les poignees ambre ne s'affichent pas et les nouveaux parametres ne lui sont pas transmis. Il faut mettre a jour uniquement la carte qui effectue le calcul des axes.
+
+**Important :** ce firmware est experimental et ne doit pas etre utilise en vol avant validation reelle sur banc (USB, calibration, sens, butees, PPM/SBUS/CRSF/Bluetooth, pertes de liaison, redemarrage). Ne flasher qu'une carte a la fois.
+
+---
 # HeadTracker v2.40 Expo — installation et retour arrière
 
 Cette variante est construite depuis la v2.40 officielle, commit a9ea5ca6e58a34c434aad5dc7ce641dbf03741bb. Le commit des modifications se trouve dans SOURCE_COMMIT.txt. Elle ne constitue pas une version officielle du projet HeadTracker.
