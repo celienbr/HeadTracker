@@ -131,6 +131,17 @@ patch("gui/src/boardjson.cpp", "        // Pause a bit, give time for device to 
       "        // Nonblocking, bounded retry of the outstanding packet.")
 patch("gui/src/boardjson.cpp", "        jsonwaitingack++;", "        jsonwaitingack++;\n        ackTimer.start();")
 
+# FW replies must use the same CRC input and little-endian byte order as GUI.
+# Upstream serialWriteJSON calculated CRC over an uninitialised leading byte
+# and omitted the last JSON byte. Upstream GUI ignored incoming CRC; Expo GUI
+# now validates it, so uncorrected FW replies were silently discarded.
+patch("firmware/src/src/serial.cpp",
+      "  uint16_t calccrc = escapeCRC(uCRC16Lib::calculate(data, br));",
+      "  uint16_t calccrc = escapeCRC(uCRC16Lib::calculate(data + 1, br));")
+patch("firmware/src/src/serial.cpp",
+      "  data[br + 1] = (calccrc >> 8) & 0xFF;\n  data[br + 2] = calccrc & 0xFF;",
+      "  data[br + 1] = calccrc & 0xFF;\n  data[br + 2] = (calccrc >> 8) & 0xFF;")
+
 # Recenter-on-tilt is an input gesture; Expo must not change its threshold.
 patch("firmware/src/src/sense.cpp", "    // Reset on tilt",
       '''    const uint16_t rollout_for_reset = expoChannel(rollout, trkset.getRll_Cnt(),
