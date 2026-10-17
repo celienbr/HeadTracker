@@ -6,71 +6,23 @@ import pathlib
 import subprocess
 import sys
 
-EXPO_HEADER = """// HeadTracker Expo v2.40 - courbe non lineaire par axe
-#pragma once
-#include <stdint.h>
-static inline uint16_t expoChannel(float deltaUs, uint16_t centerUs,
-                                   uint16_t minUs, uint16_t maxUs,
-                                   uint8_t expoPercent)
-{
-    if (minUs >= maxUs) return centerUs;
-    const float lo = static_cast<float>(minUs);
-    const float hi = static_cast<float>(maxUs);
-    float center = static_cast<float>(centerUs);
-    if (center < lo) center = lo;
-    if (center > hi) center = hi;
-    const float span = (deltaUs < 0.0f) ? center - lo : hi - center;
-    if (span <= 0.0f) return static_cast<uint16_t>(center);
-    float x = deltaUs / span;
-    if (x < -1.0f) x = -1.0f;
-    if (x > 1.0f) x = 1.0f;
-    if (expoPercent > 100) expoPercent = 100;
-    const float e = static_cast<float>(expoPercent) / 100.0f;
-    const float y = x * ((1.0f - e) + e * x * x);
-    return static_cast<uint16_t>(center + y * span + 0.5f);
-}
-"""
-GUI_INCLUDES = """#include <QDialog>
-#include <QDialogButtonBox>
-#include <QFormLayout>
-#include <QMenuBar>
-#include <QSpinBox>
-"""
-GUI_DIALOG = """    // Expo configurable dans la GUI, enregistre en Flash via Save Settings.
-    auto *expoAction = menuBar()->addAction(tr("Expo / Courbes..."));
+ASSETS = pathlib.Path(__file__).resolve().parent / "ci"
+UPSTREAM_SHA = "a9ea5ca6e58a34c434aad5dc7ce641dbf03741bb"
+EXPO_HEADER = (ASSETS / "expo_curve.h").read_text(encoding="utf-8")
+GUI_INCLUDES = '#include "expo_dialog.h"\n'
+GUI_DIALOG = """    auto *expoAction = menuBar()->addAction(tr("Expo / Courbes..."));
+    expoAction->setObjectName("expoAction");
     connect(expoAction, &QAction::triggered, this, [this]() {
-        if (!serialcon->isOpen()) {
-            QMessageBox::information(this, tr("HeadTracker"),
-                                     tr("Connecter la carte avant de modifier l'Expo."));
+        if (!serialcon->isOpen() || waitingOnParameters || !trkset.supportsExpo()) {
+            QMessageBox::information(this, tr("HeadTracker Expo"),
+                tr("Connecter une carte avec le firmware Expo et attendre la lecture des parametres."));
             return;
         }
-        QDialog dlg(this);
-        dlg.setWindowTitle(tr("Courbes Expo - Pan / Tilt / Roll"));
-        auto *form = new QFormLayout(&dlg);
-        auto *panExpo = new QSpinBox(&dlg);
-        auto *tiltExpo = new QSpinBox(&dlg);
-        auto *rollExpo = new QSpinBox(&dlg);
-        for (auto *spin : {panExpo, tiltExpo, rollExpo}) {
-            spin->setRange(0, 100);
-            spin->setSuffix(" %");
-            spin->setSingleStep(5);
-            spin->setToolTip(tr("0 % = lineaire ; 100 % = tres doux autour du centre."));
-        }
-        panExpo->setValue(trkset.getPanExpo());
-        tiltExpo->setValue(trkset.getTltExpo());
-        rollExpo->setValue(trkset.getRllExpo());
-        form->addRow(tr("Pan (horizontal)"), panExpo);
-        form->addRow(tr("Tilt (vertical)"), tiltExpo);
-        form->addRow(tr("Roll (inclinaison)"), rollExpo);
-        auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
-                                             &dlg);
-        form->addRow(buttons);
-        connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
-        connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+        ExpoDialog dlg(trkset, this);
         if (dlg.exec() != QDialog::Accepted) return;
-        trkset.setPanExpo(static_cast<uint8_t>(panExpo->value()));
-        trkset.setTltExpo(static_cast<uint8_t>(tiltExpo->value()));
-        trkset.setRllExpo(static_cast<uint8_t>(rollExpo->value()));
+        // A disconnect can happen while the modal dialog is open.
+        if (!serialcon->isOpen() || !trkset.supportsExpo()) return;
+        dlg.applyTo(trkset);
         updateFromUI();
     });
 
@@ -92,8 +44,8 @@ OUTPUT_NEW = """    const uint16_t tiltout_ui = expoChannel(
         panout, trkset.getPan_Cnt(), trkset.getPan_Min(), trkset.getPan_Max(),
         trkset.getPanExpo());
 """
-ROWS = """u8,Setting,PanExpo,50,0,100,Pan Expo (percent),,,,
-u8,Setting,TltExpo,35,0,100,Tilt Expo (percent),,,,
+ROWS = """u8,Setting,PanExpo,0,0,100,Pan Expo (percent),,,,
+u8,Setting,TltExpo,0,0,100,Tilt Expo (percent),,,,
 u8,Setting,RllExpo,0,0,100,Roll Expo (percent),,,,
 """
 
@@ -108,6 +60,9 @@ def main():
     parser.add_argument("repository", type=pathlib.Path)
     args = parser.parse_args()
     repo = args.repository.resolve()
+    actual = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+    if actual != UPSTREAM_SHA:
+        raise RuntimeError(f"Reference incorrecte: {actual}, attendu {UPSTREAM_SHA}")
     csvfile = repo / "settings/settings.csv"
     sensefile = repo / "firmware/src/src/sense.cpp"
     headfile = repo / "firmware/src/src/expo_curve.h"
@@ -139,6 +94,7 @@ def main():
                     (headfile, EXPO_HEADER)):
         f.write_text(body, encoding="utf-8")
         print("Modifie :", f.relative_to(repo))
+    subprocess.run([sys.executable, str(ASSETS / "apply_compat.py"), str(repo)], check=True)
     subprocess.run([sys.executable, "-c",
                     "import buildguisettings; import buildfwsettings; import buildfwbtsettings"],
                    cwd=repo / "settings", check=True)

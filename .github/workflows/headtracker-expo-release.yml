@@ -5,9 +5,39 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 jobs:
+  native-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: modification
+      - uses: actions/checkout@v4
+        with:
+          repository: headtracker/HeadTracker
+          ref: a9ea5ca6e58a34c434aad5dc7ce641dbf03741bb
+          path: HT
+          submodules: recursive
+      - name: Test actual generated firmware code
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 modification/appliquer_expo_gui.py HT
+          mkdir -p evidence
+          g++ -std=c++11 -O2 -fsanitize=undefined,float-cast-overflow -fno-sanitize-recover=all -I HT/firmware/src/src -I HT/firmware/src/src/include -I HT/firmware/src/third-party/ArduinoJson/src modification/ci/tests/native_tests.cpp -o native-tests
+          ./native-tests | tee evidence/native-tests.txt
+          git -C HT diff > evidence/applied.patch
+          cp HT/firmware/src/src/expo_curve.h evidence/
+          cp HT/gui/src/expo_dialog.h evidence/
+          cp HT/firmware/src/src/include/flash_settings.h evidence/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HeadTracker-Expo-Native-Tests
+          path: evidence/
+          if-no-files-found: error
   firmware:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
       image: docker.io/dlktdr/ht_zephyr:3.7.1
     steps:
@@ -17,7 +47,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: headtracker/HeadTracker
-          ref: v2.40
+          ref: a9ea5ca6e58a34c434aad5dc7ce641dbf03741bb
           path: HT
           submodules: recursive
           fetch-depth: 0
@@ -25,23 +55,39 @@ jobs:
         run: |
           . /root/zephyr_py_env/.venv/bin/activate
           python modification/appliquer_expo_gui.py HT
-      - name: Build firmwares
+      - name: Build and inspect both firmware targets
+        shell: bash
         run: |
+          set -euo pipefail
           . /root/zephyr_py_env/.venv/bin/activate
           export ZEPHYR_BASE=/root/zephyr/zephyr
           cd /root/zephyr-sdk && ./setup.sh -c
           cd "$GITHUB_WORKSPACE/HT/firmware/src"
-          mkdir -p "$GITHUB_WORKSPACE/firmwares"
-          west build -p always -b arduino_nano_33_ble
-          cp build/zephyr/*.bin "$GITHUB_WORKSPACE/firmwares/Nano33BLE.bin"
-          west build -p always -b arduino_nano_33_ble -- -DBOARD_REV2=y
-          cp build/zephyr/*.bin "$GITHUB_WORKSPACE/firmwares/Nano33BLE-Rev2.bin"
+          mkdir -p "$GITHUB_WORKSPACE/firmwares/proofs"
+          for variant in Nano33BLE Nano33BLE-Rev2; do
+            args=()
+            if [ "$variant" = Nano33BLE-Rev2 ]; then args+=(-DBOARD_REV2=y); fi
+            west build -p always -d "build-$variant" -b arduino_nano_33_ble -- -DCMAKE_EXPORT_COMPILE_COMMANDS=ON "${args[@]}"
+            bins=(build-$variant/zephyr/*.bin)
+            test "${#bins[@]}" -eq 1
+            cp "${bins[0]}" "$GITHUB_WORKSPACE/firmwares/$variant.bin"
+            mkdir -p "$GITHUB_WORKSPACE/firmwares/proofs/$variant"
+            cp build-$variant/zephyr/*.elf build-$variant/zephyr/*.map build-$variant/zephyr/zephyr.dts build-$variant/zephyr/.config build-$variant/compile_commands.json "$GITHUB_WORKSPACE/firmwares/proofs/$variant/"
+            if [ "$variant" = Nano33BLE-Rev2 ]; then
+              grep -q -- '-DBOARD_REV2=1' build-$variant/compile_commands.json
+            else
+              ! grep -q -- '-DBOARD_REV2=1' build-$variant/compile_commands.json
+            fi
+          done
+          python "$GITHUB_WORKSPACE/modification/ci/inspect_package.py" "$GITHUB_WORKSPACE/firmwares" --firmware
+          printf '%s\n' "$GITHUB_SHA" > "$GITHUB_WORKSPACE/firmwares/SOURCE_COMMIT.txt"
       - uses: actions/upload-artifact@v4
         with:
           name: HeadTracker-Expo-Firmwares
-          path: firmwares/*.bin
+          path: firmwares/
+          if-no-files-found: error
   gui:
-    runs-on: windows-latest
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
         with:
@@ -49,7 +95,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: headtracker/HeadTracker
-          ref: v2.40
+          ref: a9ea5ca6e58a34c434aad5dc7ce641dbf03741bb
           path: HT
           submodules: recursive
           fetch-depth: 0
@@ -63,53 +109,66 @@ jobs:
           arch: win64_mingw
           modules: qtserialport
           tools: 'tools_mingw90,qt.tools.win64_mingw900'
-      - name: Compile Qt
+      - name: Compile and package Windows application
         shell: pwsh
         run: |
+          $ErrorActionPreference='Stop'
           python modification/appliquer_expo_gui.py HT
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $compiler=(Get-Command g++.exe).Source
+          Write-Host "Compiler: $compiler"
           g++ --version
-          mingw32-make --version
+          if ((g++ -dumpfullversion) -ne '11.2.0') { throw 'Expected MinGW 11.2.0 matching Qt 6.4.1' }
           Push-Location HT/gui/src
           qmake HeadTracker.pro
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           mingw32-make -j2
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Pop-Location
-          mkdir output
-          Copy-Item HT/gui/src/release/* output/ -Recurse -Force
-          # Packaging Qt explicite pour eviter le defaut du plugin platforme
-          $qtbin = Join-Path $env:QT_ROOT_DIR 'bin'
-          $qtplugins = Join-Path $env:QT_ROOT_DIR 'plugins'
-          $qtDlls = @('Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Network.dll', 'Qt6Widgets.dll',
-                      'Qt6SerialPort.dll', 'Qt6OpenGL.dll', 'Qt6OpenGLWidgets.dll',
-                      'Qt6Svg.dll')
-          foreach ($dll in $qtDlls) {
-            $src = Join-Path $qtbin $dll
-            if (!(Test-Path $src)) { throw "Bibliotheque Qt absente : $src" }
-            Copy-Item $src output/
-          }
-          New-Item -ItemType Directory -Force output/platforms | Out-Null
-          Copy-Item (Join-Path $qtplugins 'platforms/qwindows.dll') output/platforms/
-          # Autres plugins usuels pour les images et les connexions reseau
-          foreach ($plugin in @('imageformats','styles','tls','networkinformation')) {
-            $src = Join-Path $qtplugins $plugin
-            if (Test-Path $src) { Copy-Item $src (Join-Path 'output' $plugin) -Recurse -Force }
-          }
-          $compilerBin = Split-Path (Get-Command g++.exe -ErrorAction Stop).Source
+          New-Item -ItemType Directory output,evidence | Out-Null
+          Copy-Item HT/gui/src/release/HeadTracker.exe output/
+          windeployqt --release --compiler-runtime --no-translations output/HeadTracker.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $compilerBin=Split-Path $compiler
           foreach ($runtime in @('libgcc_s_seh-1.dll','libstdc++-6.dll','libwinpthread-1.dll')) {
-            $src = Join-Path $compilerBin $runtime
-            if (!(Test-Path $src)) { throw "Runtime MinGW absent : $src" }
-            Copy-Item $src output/
+            Copy-Item (Join-Path $compilerBin $runtime) output/
           }
-          Copy-Item HT/gui/bin/bossac.exe output/ -ErrorAction SilentlyContinue
+          Copy-Item HT/gui/bin/bossac.exe output/
+          Copy-Item HT/LICENSE output/LICENSE.txt
+          Copy-Item modification/ci/INSTALLATION_FR.md output/
+          $env:GITHUB_SHA | Set-Content output/SOURCE_COMMIT.txt
+          python modification/ci/inspect_package.py output
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test actual Qt dialogs, INI persistence and protocol
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Copy-Item modification/ci/tests/expo_gui_tests.cpp HT/gui/src/
+          Copy-Item modification/ci/tests/ExpoGuiTests.pro HT/gui/src/
+          Push-Location HT/gui/src
+          qmake ExpoGuiTests.pro
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          mingw32-make -j2
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./release/ExpoGuiTests.exe -o ../../../evidence/qt-tests.xml,junitxml -o -,txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Pop-Location
+      - name: Launch packaged exe with clean PATH and no device
+        shell: pwsh
+        run: modification/ci/windows_smoke.ps1 -Directory output -Report evidence/portable-smoke.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: HeadTracker-Expo-Windows-Tests
+          path: evidence/
       - uses: actions/upload-artifact@v4
         with:
           name: HeadTracker-Expo-Windows-Portable
           path: output/
+          if-no-files-found: error
   installer:
-    needs: [firmware, gui]
-    runs-on: ubuntu-latest
+    needs: [firmware, gui, native-tests]
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -121,16 +180,82 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: HeadTracker-Expo-Firmwares
-          path: package/firmware
-      - name: Create setup with Linux NSIS
+          path: firmware-build
+      - name: Create NSIS installer
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq nsis
+          mkdir -p package/firmware
+          cp firmware-build/*.bin package/firmware/
+          python3 modification/ci/make_uninstall.py
           cp modification/ci/installateur.nsi .
           makensis -V3 installateur.nsi
+          sha256sum HeadTracker-Expo-Setup.exe > SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
           name: HeadTracker-Expo-Setup
-          path: HeadTracker-Expo-Setup.exe
+          path: |
+            HeadTracker-Expo-Setup.exe
+            SHA256SUMS.txt
+          if-no-files-found: error
+  installer-test:
+    needs: installer
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: modification
+      - uses: actions/download-artifact@v4
+        with:
+          name: HeadTracker-Expo-Setup
+          path: setup
+      - uses: actions/download-artifact@v4
+        with:
+          name: HeadTracker-Expo-Windows-Portable
+          path: portable
+      - uses: actions/download-artifact@v4
+        with:
+          name: HeadTracker-Expo-Firmwares
+          path: firmware-build
+      - name: Install, compare payload, launch and uninstall
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory evidence | Out-Null
+          $dir=Join-Path $env:RUNNER_TEMP 'HTExpoInstalled'
+          $p=Start-Process -FilePath setup/HeadTracker-Expo-Setup.exe -ArgumentList '/S',"/D=$dir" -Wait -PassThru
+          if($p.ExitCode -ne 0) {throw "Install failed: $($p.ExitCode)"}
+          foreach($f in Get-ChildItem portable -File -Recurse) {
+            $relative=[IO.Path]::GetRelativePath((Resolve-Path portable),$f.FullName)
+            $dest=Join-Path $dir $relative
+            if((Get-FileHash $f.FullName).Hash -ne (Get-FileHash $dest).Hash) {throw "Payload mismatch: $relative"}
+          }
+          foreach($f in Get-ChildItem firmware-build/*.bin) {
+            if((Get-FileHash $f.FullName).Hash -ne (Get-FileHash "$dir/firmware/$($f.Name)").Hash) {throw 'Firmware mismatch'}
+          }
+          & modification/ci/windows_smoke.ps1 -Directory $dir -Report evidence/installed-smoke.json
+          'preserve user data' | Set-Content "$dir/user-config.ini"
+          $p=Start-Process -FilePath "$dir/Desinstaller.exe" -ArgumentList '/S' -Wait -PassThru
+          if($p.ExitCode -ne 0) {throw 'Uninstaller failed'}
+          for($i=0;$i -lt 40 -and (Test-Path "$dir/HeadTracker.exe");$i++) {Start-Sleep -Milliseconds 250}
+          if(Test-Path "$dir/HeadTracker.exe") {throw 'Executable remains after uninstall'}
+          if(!(Test-Path "$dir/user-config.ini")) {throw 'Uninstall deleted user file'}
+          if(Test-Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\HeadTrackerExpo') {throw 'Uninstall registry remains'}
+          @{result='PASS';installed=$true;payloadHashesMatch=$true;uninstalled=$true;userFilePreserved=$true;hardwareAccess=$false} | ConvertTo-Json | Set-Content evidence/installer-test.json
+      - uses: actions/download-artifact@v4
+        with:
+          name: HeadTracker-Expo-Windows-Portable
+          path: initial-portable
+          run-id: 39025277122
+          github-token: ${{ github.token }}
+      - name: Audit initial executable launch (diagnostic only)
+        continue-on-error: true
+        shell: pwsh
+        run: modification/ci/windows_smoke.ps1 -Directory initial-portable -Report evidence/initial-portable-smoke.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: HeadTracker-Expo-Installer-Tests
+          path: evidence/

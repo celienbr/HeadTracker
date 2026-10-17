@@ -1,6 +1,7 @@
 ; HeadTracker Expo - installation Windows, sans flash automatique
 Unicode true
 !include "MUI2.nsh"
+!include "x64.nsh"
 Name "HeadTracker Expo"
 OutFile "HeadTracker-Expo-Setup.exe"
 InstallDir "$PROGRAMFILES64\HeadTracker Expo"
@@ -16,6 +17,18 @@ ShowUninstDetails show
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "French"
+Function .onInit
+  ${IfNot} ${RunningX64}
+    MessageBox MB_ICONSTOP "HeadTracker Expo necessite Windows 64 bits."
+    Abort
+  ${EndIf}
+  SetRegView 64
+  SetShellVarContext all
+FunctionEnd
+Function un.onInit
+  SetRegView 64
+  SetShellVarContext all
+FunctionEnd
 Section "HeadTracker Expo" Main
   SetOutPath "$INSTDIR"
   File /r "package/gui/*.*"
@@ -38,5 +51,5 @@ Section "Uninstall"
   RMDir "$SMPROGRAMS\HeadTracker Expo"
   DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\HeadTrackerExpo"
   DeleteRegKey HKLM "Software\HeadTrackerExpo"
-  RMDir /r "$INSTDIR"
+  !include "uninstall-files.nsh"
 SectionEnd
