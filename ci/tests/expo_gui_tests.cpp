@@ -132,6 +132,7 @@ private slots:
         QVERIFY(window.findChild<QPushButton*>("cmdConnect"));
         QVERIFY(window.findChild<QPushButton*>("cmdSaveNVM"));
         auto *action=window.findChild<QAction*>("expoAction"); QVERIFY(action);
+        QCOMPARE(action->text(),QString("Curve Settings"));
         QTimer::singleShot(100,[](){
             auto *message=qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
             QVERIFY(message); message->accept();
