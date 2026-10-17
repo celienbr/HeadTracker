@@ -18,9 +18,9 @@ ShowUninstDetails show
 !insertmacro MUI_LANGUAGE "French"
 Section "HeadTracker Expo" Main
   SetOutPath "$INSTDIR"
-  File /r "package\gui\*.*"
+  File /r "package/gui/*.*"
   SetOutPath "$INSTDIR\firmware"
-  File /r "package\firmware\*.*"
+  File /r "package/firmware/*.*"
   SetOutPath "$INSTDIR"
   WriteUninstaller "$INSTDIR\Desinstaller.exe"
   CreateDirectory "$SMPROGRAMS\HeadTracker Expo"
