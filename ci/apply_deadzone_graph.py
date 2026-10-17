@@ -21,6 +21,10 @@ for name in ("expo_curve.h","expo_deadzone.h","expo_curve_preview.h","expo_dialo
 
 # Existing amber deadzone handles use the same PopupSlider as the RED center.
 h="gui/src/servominmax.h"
+patch(h, '    int deadHighValue() const { return deadHigh; }\n',
+      '    int deadHighValue() const { return deadHigh; }\n'
+      '    QRectF deadLowHandleRect() const { return deadLowSlider; }\n'
+      '    QRectF deadHighHandleRect() const { return deadHighSlider; }\n')
 patch(h,"    void maxSpinChanged(double);\n",
       "    void maxSpinChanged(double);\n"
       "    void deadLowSpinChanged(double);\n"
