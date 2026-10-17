@@ -1,11 +1,11 @@
-; HeadTracker Expo - installation Windows, sans flash automatique
+; HeadTracker Expo Deadzone - installation Windows, sans flash automatique
 Unicode true
 !include "MUI2.nsh"
 !include "x64.nsh"
-Name "HeadTracker Expo"
+Name "HeadTracker Expo Deadzone"
 OutFile "HeadTracker-Expo-Setup.exe"
-InstallDir "$PROGRAMFILES64\HeadTracker Expo"
-InstallDirRegKey HKLM "Software\HeadTrackerExpo" "InstallDir"
+InstallDir "$PROGRAMFILES64\HeadTracker Expo Deadzone"
+InstallDirRegKey HKLM "Software\HeadTrackerExpoDeadzone" "InstallDir"
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
 ShowInstDetails show
@@ -19,7 +19,7 @@ ShowUninstDetails show
 !insertmacro MUI_LANGUAGE "French"
 Function .onInit
   ${IfNot} ${RunningX64}
-    MessageBox MB_ICONSTOP "HeadTracker Expo necessite Windows 64 bits."
+    MessageBox MB_ICONSTOP "HeadTracker Expo Deadzone necessite Windows 64 bits."
     Abort
   ${EndIf}
   SetRegView 64
@@ -29,27 +29,27 @@ Function un.onInit
   SetRegView 64
   SetShellVarContext all
 FunctionEnd
-Section "HeadTracker Expo" Main
+Section "HeadTracker Expo Deadzone" Main
   SetOutPath "$INSTDIR"
   File /r "package/gui/*.*"
   SetOutPath "$INSTDIR\firmware"
   File /r "package/firmware/*.*"
   SetOutPath "$INSTDIR"
   WriteUninstaller "$INSTDIR\Desinstaller.exe"
-  CreateDirectory "$SMPROGRAMS\HeadTracker Expo"
-  CreateShortCut "$SMPROGRAMS\HeadTracker Expo\HeadTracker Expo.lnk" "$INSTDIR\HeadTracker.exe"
-  CreateShortCut "$SMPROGRAMS\HeadTracker Expo\Desinstaller.lnk" "$INSTDIR\Desinstaller.exe"
-  WriteRegStr HKLM "Software\HeadTrackerExpo" "InstallDir" "$INSTDIR"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\HeadTrackerExpo" "DisplayName" "HeadTracker Expo (v2.40 modifiee)"
-  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\HeadTrackerExpo" "UninstallString" '"$INSTDIR\Desinstaller.exe"'
-  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\HeadTrackerExpo" "NoModify" 1
-  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\HeadTrackerExpo" "NoRepair" 1
+  CreateDirectory "$SMPROGRAMS\HeadTracker Expo Deadzone"
+  CreateShortCut "$SMPROGRAMS\HeadTracker Expo Deadzone\HeadTracker Expo Deadzone.lnk" "$INSTDIR\HeadTracker.exe"
+  CreateShortCut "$SMPROGRAMS\HeadTracker Expo Deadzone\Desinstaller.lnk" "$INSTDIR\Desinstaller.exe"
+  WriteRegStr HKLM "Software\HeadTrackerExpoDeadzone" "InstallDir" "$INSTDIR"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\HeadTrackerExpoDeadzone" "DisplayName" "HeadTracker Expo Deadzone (v2.40 modifiee)"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\HeadTrackerExpoDeadzone" "UninstallString" '"$INSTDIR\Desinstaller.exe"'
+  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\HeadTrackerExpoDeadzone" "NoModify" 1
+  WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\HeadTrackerExpoDeadzone" "NoRepair" 1
 SectionEnd
 Section "Uninstall"
-  Delete "$SMPROGRAMS\HeadTracker Expo\HeadTracker Expo.lnk"
-  Delete "$SMPROGRAMS\HeadTracker Expo\Desinstaller.lnk"
-  RMDir "$SMPROGRAMS\HeadTracker Expo"
-  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\HeadTrackerExpo"
-  DeleteRegKey HKLM "Software\HeadTrackerExpo"
+  Delete "$SMPROGRAMS\HeadTracker Expo Deadzone\HeadTracker Expo Deadzone.lnk"
+  Delete "$SMPROGRAMS\HeadTracker Expo Deadzone\Desinstaller.lnk"
+  RMDir "$SMPROGRAMS\HeadTracker Expo Deadzone"
+  DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\HeadTrackerExpoDeadzone"
+  DeleteRegKey HKLM "Software\HeadTrackerExpoDeadzone"
   !include "uninstall-files.nsh"
 SectionEnd
