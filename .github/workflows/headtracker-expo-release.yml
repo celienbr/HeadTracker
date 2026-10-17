@@ -168,6 +168,20 @@ jobs:
           ./release/ExpoGuiTests.exe -o ../../../evidence/qt-tests.xml,junitxml -o -,txt
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Pop-Location
+      - name: Verify deadzone handles, capability and persistency in real Qt GUI
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Copy-Item modification/ci/tests/deadzone_gui_tests.cpp HT/gui/src/
+          Copy-Item modification/ci/tests/DeadzoneGuiTests.pro HT/gui/src/
+          Push-Location HT/gui/src
+          qmake DeadzoneGuiTests.pro
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          mingw32-make -j2
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./release/DeadzoneGuiTests.exe -o ../../../evidence/deadzone-qt-tests.xml,junitxml -o -,txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Pop-Location
       - name: Launch packaged exe with clean PATH and no device
         shell: pwsh
         run: modification/ci/windows_smoke.ps1 -Directory output -Report evidence/portable-smoke.json
