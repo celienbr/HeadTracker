@@ -96,6 +96,7 @@ def main():
         print("Modifie :", f.relative_to(repo))
     subprocess.run([sys.executable, str(ASSETS / "apply_compat.py"), str(repo)], check=True)
     subprocess.run([sys.executable, str(ASSETS / "apply_deadzone.py"), str(repo)], check=True)
+    subprocess.run([sys.executable, str(ASSETS / "apply_deadzone_graph.py"), str(repo)], check=True)
     subprocess.run([sys.executable, "-c",
                     "import buildguisettings; import buildfwsettings; import buildfwbtsettings"],
                    cwd=repo / "settings", check=True)
