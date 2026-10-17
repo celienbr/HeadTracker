@@ -1,3 +1,24 @@
+# Curve Settings — live graph visual update
+
+The main HeadTracker screen keeps its original layout. On connection, HeadTracker normally replaces the Welcome pane with its existing configuration controls; this change does not alter that behavior. The new top menu is **Curve Settings**.
+
+In the separate Curve Settings dialog:
+- **Green**, solid: actual active firmware Expo and deadzone curve between the configured Min/Max positions
+- **Blue**, solid vertical lines: current Min/Max limits
+- **Red**, solid vertical line: center
+- **Amber**, shaded: asymmetric center deadzone
+- **Black**, solid: theoretical extension of the curve outside the active limits, illustrating unused total travel; not a commanded servo output
+- **Yellow diamond**: current output reported by the board, positioned along the green curve; only visible after live telemetry arrives
+- Black dashed reference lines have been removed entirely.
+
+The graph shows the total supported pulse span of **988 to 2012 us**. The output value from the board supplies the diamond's Y coordinate; its X coordinate is calculated by inverting the response curve, so it is not a measurement of head angle. Flat deadzone positions cannot be uniquely inferred from output alone. The displayed diamond should not be considered a sensor-angle diagnostic.
+
+The Arduino firmware has **not** changed from the known-good Expo Deadzone build. If that firmware is already installed and communicating, do not reflash it for these graph changes.
+
+This version installs separately as **HeadTracker Curve Settings** to preserve the working older applications. Bench-check the full tracker system before flight.
+
+---
+
 # HeadTracker Expo — English UI with curve preview
 
 This experimental UI is derived from the working Expo Deadzone version. It is NOT an official HeadTracker v2.40 release.
