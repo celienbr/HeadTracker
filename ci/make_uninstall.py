@@ -10,5 +10,5 @@ for base,prefix in [(Path('package/gui'),''),(Path('package/firmware'),'firmware
         relative=(prefix+p.relative_to(base).as_posix()).replace('/','\\')
         lines.append('  RMDir "$INSTDIR\\'+relative+'"')
     if prefix:lines.append('  RMDir "$INSTDIR\\firmware"')
-lines += ['  Delete "$INSTDIR\\Desinstaller.exe"','  RMDir "$INSTDIR"']
+lines += ['  Delete "$INSTDIR\\Uninstall.exe"','  RMDir "$INSTDIR"']
 Path('uninstall-files.nsh').write_text('\n'.join(lines)+'\n')
