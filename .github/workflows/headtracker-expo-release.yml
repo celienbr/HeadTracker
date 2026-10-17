@@ -1,7 +1,7 @@
-name: HeadTracker Expo Deadzone + Courbes Build
+name: HeadTracker Expo English UI Build
 on:
   push:
-    branches: [expo-deadzone-graph]
+    branches: [expo-deadzone-english-ui]
   workflow_dispatch:
 permissions:
   contents: read
@@ -150,7 +150,7 @@ jobs:
           }
           Copy-Item HT/gui/bin/bossac.exe output/
           Copy-Item HT/LICENSE output/LICENSE.txt
-          Copy-Item modification/ci/INSTALLATION_FR.md output/
+          Copy-Item modification/ci/INSTALLATION_EN.md output/
           $env:GITHUB_SHA | Set-Content output/SOURCE_COMMIT.txt
           python modification/ci/inspect_package.py output
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -266,12 +266,12 @@ jobs:
           }
           & modification/ci/windows_smoke.ps1 -Directory $dir -Report evidence/installed-smoke.json
           'preserve user data' | Set-Content "$dir/user-config.ini"
-          $p=Start-Process -FilePath "$dir/Desinstaller.exe" -ArgumentList '/S' -Wait -PassThru
+          $p=Start-Process -FilePath "$dir/Uninstall.exe" -ArgumentList '/S' -Wait -PassThru
           if($p.ExitCode -ne 0) {throw 'Uninstaller failed'}
           for($i=0;$i -lt 40 -and (Test-Path "$dir/HeadTracker.exe");$i++) {Start-Sleep -Milliseconds 250}
           if(Test-Path "$dir/HeadTracker.exe") {throw 'Executable remains after uninstall'}
           if(!(Test-Path "$dir/user-config.ini")) {throw 'Uninstall deleted user file'}
-          if(Test-Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\HeadTrackerExpoGraph') {throw 'Uninstall registry remains'}
+          if(Test-Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\HeadTrackerExpoEnglish') {throw 'Uninstall registry remains'}
           @{result='PASS';installed=$true;payloadHashesMatch=$true;uninstalled=$true;userFilePreserved=$true;hardwareAccess=$false} | ConvertTo-Json | Set-Content evidence/installer-test.json
       - uses: actions/download-artifact@v4
         with:
