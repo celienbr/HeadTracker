@@ -73,41 +73,56 @@ patch(cpp,"    maxspinbox->hide();\n\n    if(event->buttons() == Qt::LeftButton)
 patch(cpp,"            deadLowStart = deadLow;\n",
       """            deadLowStart = deadLow;
             deadLowPopup->setLimits(0,deadLowLimit());
-            deadLowPopup->show();
             deadLowPopup->move(this->mapToGlobal(QPoint(
                 qRound(deadLowSlider.center().x())-deadLowPopup->width()/2,
                 -deadLowPopup->height()+padding/2)));
-            deadLowPopup->setValue(deadLow);
 """)
 patch(cpp,"            deadHighStart = deadHigh;\n",
       """            deadHighStart = deadHigh;
             deadHighPopup->setLimits(0,deadHighLimit());
-            deadHighPopup->show();
             deadHighPopup->move(this->mapToGlobal(QPoint(
                 qRound(deadHighSlider.center().x())-deadHighPopup->width()/2,
                 -deadHighPopup->height()+padding/2)));
-            deadHighPopup->setValue(deadHigh);
 """)
 patch(cpp,
       '        QToolTip::showText(event->globalPosition().toPoint(),\n'
       '            tr("Zone morte inferieure : %1 us").arg(deadLow), this);\n'
       '        update();',
-      """        deadLowPopup->move(this->mapToGlobal(QPoint(
-            event->pos().x()-deadLowPopup->width()/2,
-            -deadLowPopup->height()+padding/2)));
-        { QSignalBlocker blocker(deadLowPopup);
-          deadLowPopup->setValue(deadLow); }
+      """        QToolTip::showText(event->globalPosition().toPoint(),
+            tr("Zone morte inferieure : %1 us").arg(deadLow), this);
         update();""")
 patch(cpp,
       '        QToolTip::showText(event->globalPosition().toPoint(),\n'
       '            tr("Zone morte superieure : %1 us").arg(deadHigh), this);\n'
       '        update();',
-      """        deadHighPopup->move(this->mapToGlobal(QPoint(
-            event->pos().x()-deadHighPopup->width()/2,
-            -deadHighPopup->height()+padding/2)));
-        { QSignalBlocker blocker(deadHighPopup);
-          deadHighPopup->setValue(deadHigh); }
+      """        QToolTip::showText(event->globalPosition().toPoint(),
+            tr("Zone morte superieure : %1 us").arg(deadHigh), this);
         update();""")
+
+# Windows consumes the click release before the keyboard-focus popup can be
+# opened reliably. Show numeric editor on release only when no drag occurred.
+patch(cpp,
+      '    if (deadLowSelected && deadLow != deadLowStart) emit deadLowChanged(deadLow);',
+      '''    if (deadLowSelected && deadLow == deadLowStart) {
+        deadLowPopup->setLimits(0,deadLowLimit());
+        deadLowPopup->move(this->mapToGlobal(QPoint(
+            qRound(deadLowSlider.center().x())-deadLowPopup->width()/2,
+            -deadLowPopup->height()+padding/2)));
+        deadLowPopup->show();
+        deadLowPopup->setValue(deadLow);
+    }
+    if (deadLowSelected && deadLow != deadLowStart) emit deadLowChanged(deadLow);''')
+patch(cpp,
+      '    if (deadHighSelected && deadHigh != deadHighStart) emit deadHighChanged(deadHigh);',
+      '''    if (deadHighSelected && deadHigh == deadHighStart) {
+        deadHighPopup->setLimits(0,deadHighLimit());
+        deadHighPopup->move(this->mapToGlobal(QPoint(
+            qRound(deadHighSlider.center().x())-deadHighPopup->width()/2,
+            -deadHighPopup->height()+padding/2)));
+        deadHighPopup->show();
+        deadHighPopup->setValue(deadHigh);
+    }
+    if (deadHighSelected && deadHigh != deadHighStart) emit deadHighChanged(deadHigh);''')
 
 # Suppress the modal double-click numeric editor: a single click now opens
 # the SAME yellow PopupSlider used for the center/min/max.
