@@ -1,7 +1,7 @@
-name: HeadTracker Expo Deadzone Build
+name: HeadTracker Expo Deadzone + Courbes Build
 on:
   push:
-    branches: [expo-deadzone]
+    branches: [expo-deadzone-graph]
   workflow_dispatch:
 permissions:
   contents: read
@@ -271,7 +271,7 @@ jobs:
           for($i=0;$i -lt 40 -and (Test-Path "$dir/HeadTracker.exe");$i++) {Start-Sleep -Milliseconds 250}
           if(Test-Path "$dir/HeadTracker.exe") {throw 'Executable remains after uninstall'}
           if(!(Test-Path "$dir/user-config.ini")) {throw 'Uninstall deleted user file'}
-          if(Test-Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\HeadTrackerExpoDeadzone') {throw 'Uninstall registry remains'}
+          if(Test-Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\HeadTrackerExpoGraph') {throw 'Uninstall registry remains'}
           @{result='PASS';installed=$true;payloadHashesMatch=$true;uninstalled=$true;userFilePreserved=$true;hardwareAccess=$false} | ConvertTo-Json | Set-Content evidence/installer-test.json
       - uses: actions/download-artifact@v4
         with:
