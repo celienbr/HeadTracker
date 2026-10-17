@@ -27,6 +27,7 @@ jobs:
           mkdir -p evidence
           g++ -std=c++11 -O2 -fsanitize=undefined,float-cast-overflow -fno-sanitize-recover=all -I HT/firmware/src/src -I HT/firmware/src/src/include -I HT/firmware/src/third-party/ArduinoJson/src modification/ci/tests/native_tests.cpp -o native-tests
           ./native-tests | tee evidence/native-tests.txt
+          python3 modification/ci/tests/firmware_wire_test.py HT/firmware/src/src/serial.cpp HT/firmware/src/src | tee evidence/firmware-wire-test.txt
           git -C HT diff > evidence/applied.patch
           cp HT/firmware/src/src/expo_curve.h evidence/
           cp HT/gui/src/expo_dialog.h evidence/
