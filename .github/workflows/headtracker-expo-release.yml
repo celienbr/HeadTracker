@@ -33,9 +33,9 @@ jobs:
           cd "$GITHUB_WORKSPACE/HT/firmware/src"
           mkdir -p "$GITHUB_WORKSPACE/firmwares"
           west build -p always -b arduino_nano_33_ble
-          cp build/zephyr/zephyr.bin "$GITHUB_WORKSPACE/firmwares/Nano33BLE.bin"
+          cp build/zephyr/*.bin "$GITHUB_WORKSPACE/firmwares/Nano33BLE.bin"
           west build -p always -b arduino_nano_33_ble -- -DBOARD_REV2=y
-          cp build/zephyr/zephyr.bin "$GITHUB_WORKSPACE/firmwares/Nano33BLE-Rev2.bin"
+          cp build/zephyr/*.bin "$GITHUB_WORKSPACE/firmwares/Nano33BLE-Rev2.bin"
       - uses: actions/upload-artifact@v4
         with:
           name: HeadTracker-Expo-Firmwares
@@ -78,8 +78,30 @@ jobs:
           Pop-Location
           mkdir output
           Copy-Item HT/gui/src/release/* output/ -Recurse -Force
-          windeployqt --release --compiler-runtime output/HeadTracker.exe
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # Packaging Qt explicite pour eviter le defaut du plugin platforme
+          $qtbin = Join-Path $env:QT_ROOT_DIR 'bin'
+          $qtplugins = Join-Path $env:QT_ROOT_DIR 'plugins'
+          $qtDlls = @('Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Network.dll', 'Qt6Widgets.dll',
+                      'Qt6SerialPort.dll', 'Qt6OpenGL.dll', 'Qt6OpenGLWidgets.dll',
+                      'Qt6Svg.dll')
+          foreach ($dll in $qtDlls) {
+            $src = Join-Path $qtbin $dll
+            if (!(Test-Path $src)) { throw "Bibliotheque Qt absente : $src" }
+            Copy-Item $src output/
+          }
+          New-Item -ItemType Directory -Force output/platforms | Out-Null
+          Copy-Item (Join-Path $qtplugins 'platforms/qwindows.dll') output/platforms/
+          # Autres plugins usuels pour les images et les connexions reseau
+          foreach ($plugin in @('imageformats','styles','tls','networkinformation')) {
+            $src = Join-Path $qtplugins $plugin
+            if (Test-Path $src) { Copy-Item $src (Join-Path 'output' $plugin) -Recurse -Force }
+          }
+          $compilerBin = Split-Path (Get-Command g++.exe -ErrorAction Stop).Source
+          foreach ($runtime in @('libgcc_s_seh-1.dll','libstdc++-6.dll','libwinpthread-1.dll')) {
+            $src = Join-Path $compilerBin $runtime
+            if (!(Test-Path $src)) { throw "Runtime MinGW absent : $src" }
+            Copy-Item $src output/
+          }
           Copy-Item HT/gui/bin/bossac.exe output/ -ErrorAction SilentlyContinue
       - uses: actions/upload-artifact@v4
         with:
