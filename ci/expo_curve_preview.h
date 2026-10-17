@@ -96,30 +96,22 @@ protected:
 
         // The actual green part precisely matches the firmware, including
         // center plateau, left/right deadzone, expo and active min/max.
-        QPainterPath green,blackBefore,blackAfter;
-        for (int i=0;i<=380;++i) {
-            const double input=TrackerMin+total*i/380.;
-            const double y=input<low || input>high
-                ? extrapolateUnused(input)
-                : outputFor(static_cast<float>(input-mid));
-            const QPointF point(px(input),py(y));
-            QPainterPath &path=(input<low ? blackBefore :
-                 (input>high ? blackAfter : green));
-            if (path.isEmpty()) path.moveTo(point);
-            else path.lineTo(point);
-        }
-        // Explicit boundary samples join the physical end points exactly,
-        // without relying on the sample grid to land on configured limits.
-        const QPointF begin(px(low),py(outputFor(float(low-mid))));
-        const QPointF end(px(high),py(outputFor(float(high-mid))));
-        blackBefore.lineTo(begin);
-        if (green.isEmpty()) green.moveTo(begin);
-        else {
-            // prepend first accurate endpoint while keeping the sampled path
-            // continuous; adding a short segment at green's end is harmless.
-        }
-        green.lineTo(end);
-        blackAfter.connectPath(QPainterPath()); // no-op: handled below
+        auto drawSegment=[&](double start,double stop,bool used) {
+            QPainterPath path;
+            for(int i=0;i<=300;++i) {
+                const double input=start+(stop-start)*i/300.;
+                const double y=used
+                    ? outputFor(static_cast<float>(input-mid))
+                    : extrapolateUnused(input);
+                const QPointF point(px(input),py(y));
+                if(i==0) path.moveTo(point);
+                else path.lineTo(point);
+            }
+            return path;
+        };
+        const QPainterPath green=drawSegment(low,high,true);
+        const QPainterPath blackBefore=drawSegment(TrackerMin,low,false);
+        const QPainterPath blackAfter=drawSegment(high,TrackerMax,false);
         p.setPen(QPen(Qt::black,2));
         p.drawPath(blackBefore);p.drawPath(blackAfter);
         p.setPen(QPen(QColor(0,139,35),3));
