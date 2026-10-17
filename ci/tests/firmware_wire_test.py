@@ -17,7 +17,7 @@ def extract(signature):
     start = serial.find(signature)
     if start < 0:
         raise RuntimeError("Missing actual firmware definition " + signature)
-    brace = serial.find("{", start + len(signature))
+    brace = serial.find("{", start)
     if brace < 0:
         raise RuntimeError("No brace: " + signature)
     depth = 0
@@ -30,8 +30,8 @@ def extract(signature):
                 return serial[start:i + 1]
     raise RuntimeError("Unbalanced braces")
 
-escape = extract("\nuint16_t escapeCRC(uint16_t crc)")
-send = extract("\nvoid serialWriteJSON(JsonDocument &json)")
+escape = extract("\nuint16_t escapeCRC(uint16_t crc)\n{")
+send = extract("\nvoid serialWriteJSON(JsonDocument &json)\n{")
 cpp = r"""
 #include <cassert>
 #include <cstdio>
