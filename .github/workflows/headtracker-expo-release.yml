@@ -109,7 +109,7 @@ jobs:
           path: output/
   installer:
     needs: [firmware, gui]
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -122,14 +122,14 @@ jobs:
         with:
           name: HeadTracker-Expo-Firmwares
           path: package/firmware
-      - name: Create setup
-        shell: pwsh
+      - name: Create setup with Linux NSIS
+        shell: bash
         run: |
-          choco install nsis -y --no-progress
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Copy-Item modification/ci/installateur.nsi .
-          & 'C:\Program Files (x86)\NSIS\makensis.exe' installateur.nsi
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq nsis
+          cp modification/ci/installateur.nsi .
+          makensis -V3 installateur.nsi
       - uses: actions/upload-artifact@v4
         with:
           name: HeadTracker-Expo-Setup
