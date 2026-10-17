@@ -123,8 +123,9 @@ private slots:
     }
     void curvePreviewFollowsSelectionAndExpo() {
         TrackerSettings model;
+        model.setAllData(model.allData());
         model.setPanExpo(38); model.setTltExpo(23); model.setRllExpo(72);
-        model.setPan_Cnt(1510); model.setPan_Min(1020); model.setPan_Max(1940);
+        model.setPan_Min(1020); model.setPan_Max(1940); model.setPan_Cnt(1510);
         model.setPanDZLow(40); model.setPanDZHigh(13);
         model.setTltDZLow(5); model.setTltDZHigh(25);
         model.setRllDZLow(9); model.setRllDZHigh(63);
@@ -133,32 +134,45 @@ private slots:
         QVERIFY(QTest::qWaitForWindowExposed(&dialog));
         auto *plot=dialog.findChild<ExpoCurvePreview*>("expoCurvePreview");
         auto *selector=dialog.findChild<QComboBox*>("curveAxis");
-        auto *description=dialog.findChild<QLabel*>("curveDescription");
-        QVERIFY(plot); QVERIFY(selector); QVERIFY(description);
+        auto *title=dialog.findChild<QLabel*>("curveGraphTitle");
+        auto *expo=dialog.findChild<QSpinBox*>("expoPercent");
+        auto *left=dialog.findChild<QSpinBox*>("deadzoneLeft");
+        auto *right=dialog.findChild<QSpinBox*>("deadzoneRight");
+        auto *center=dialog.findChild<QSpinBox*>("curveCenter");
+        QVERIFY(plot); QVERIFY(selector); QVERIFY(title);
+        QVERIFY(expo); QVERIFY(left); QVERIFY(right); QVERIFY(center);
         QCOMPARE(selector->count(),3);
         QCOMPARE(plot->currentExpo(),38);
         QCOMPARE(plot->currentDeadLeft(),uint16_t(40));
         QCOMPARE(plot->currentDeadRight(),uint16_t(13));
-        QCOMPARE(plot->outputFor(-15),uint16_t(1510)); // left flat band
-        QCOMPARE(plot->outputFor(11),uint16_t(1510));  // right flat band
+        QCOMPARE(plot->outputFor(-15),uint16_t(1510));
+        QCOMPARE(plot->outputFor(11),uint16_t(1510));
         QVERIFY(plot->outputFor(90)>1510);
-        QVERIFY(description->text().contains("40"));
-        auto *pan=dialog.findChild<QSpinBox*>("panExpo"); QVERIFY(pan);
-        pan->setValue(80);
+        QVERIFY(title->text().contains("Pan"));
+        expo->setValue(80);
         QCOMPARE(plot->currentExpo(),80);
+        left->setValue(48);
+        QCOMPARE(plot->currentDeadLeft(),uint16_t(48));
+        center->setValue(1520);
+        QCOMPARE(plot->outputFor(-20),uint16_t(1520));
         selector->setCurrentIndex(2);
         QCOMPARE(plot->currentExpo(),72);
         QCOMPARE(plot->currentDeadLeft(),uint16_t(9));
         QCOMPARE(plot->currentDeadRight(),uint16_t(63));
         QVERIFY(plot->grab().save("../../../evidence/deadzone-curve-preview.png"));
+        QVERIFY(dialog.grab().save("../../../evidence/english-expo-dialog.png"));
         selector->setCurrentIndex(1);
         QCOMPARE(plot->currentExpo(),23);
         QCOMPARE(plot->currentDeadRight(),uint16_t(25));
-        // Preview must not modify the device model before OK.
+        // Axis switching retains other drafts; nothing reaches device on Cancel.
+        selector->setCurrentIndex(0);
+        QCOMPARE(plot->currentExpo(),80);
+        QCOMPARE(plot->currentDeadLeft(),uint16_t(48));
         QCOMPARE(model.getPanExpo(),uint8_t(38));
         dialog.reject();
         QVERIFY(!dialog.applyTo(model));
         QCOMPARE(model.getPanExpo(),uint8_t(38));
+        QCOMPARE(model.getPan_Cnt(),uint16_t(1510));
     }
     void protocolWithDeadzone() {
         TrackerSettings ts;
