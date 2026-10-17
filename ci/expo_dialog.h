@@ -22,7 +22,7 @@ public:
         : QDialog(parent)
     {
         setObjectName("expoDialog");
-        setWindowTitle(tr("Expo / Curves"));
+        setWindowTitle(tr("Curve Settings"));
         setMinimumSize(850,480);
         resize(960,530);
 
@@ -40,7 +40,7 @@ public:
         auto *root=new QVBoxLayout(this);
         auto *body=new QHBoxLayout();
         root->addLayout(body,1);
-        auto *controls=new QGroupBox(tr("Curve settings"),this);
+        auto *controls=new QGroupBox(tr("Curve Settings"),this);
         controls->setMinimumWidth(235);
         controls->setMaximumWidth(280);
         auto *form=new QFormLayout(controls);
@@ -105,14 +105,19 @@ public:
         chartLayout->addWidget(chartTitle);
         preview=new ExpoCurvePreview(chartBox);
         chartLayout->addWidget(preview,1);
-        chartLayout->addWidget(new QLabel(
-            tr("Blue: Expo + deadzone   ·   Gray dashed: linear reference   ·   "
-               "Amber: deadzone"),chartBox));
+        auto *legend=new QLabel(
+            tr("Green: active curve   ·   Blue: Min/Max limits   ·   Red: center\n"
+               "Amber: deadzone   ·   Black: unused total travel   ·   "
+               "Yellow diamond: live output"),chartBox);
+        legend->setObjectName("curveLegend");
+        legend->setWordWrap(true);
+        chartLayout->addWidget(legend);
         body->addWidget(chartBox,1);
 
         auto *bottom=new QHBoxLayout();
         root->addLayout(bottom);
-        bottom->addWidget(new QLabel(tr("Live mathematical preview — not sensor telemetry."),this));
+        bottom->addWidget(new QLabel(
+            tr("Curve preview; yellow diamond updates only when output telemetry is received."),this));
         bottom->addStretch();
         auto *buttons=new QDialogButtonBox(QDialogButtonBox::Ok |
                                            QDialogButtonBox::Cancel,this);
@@ -123,6 +128,17 @@ public:
         connect(buttons,&QDialogButtonBox::rejected,this,&QDialog::reject);
         connect(axis,qOverload<int>(&QComboBox::currentIndexChanged),
                 this,[this](int index){ selectAxis(index); });
+        // The same output stream drives the three yellow diamonds in the
+        // main panel. The dialog is modal but serial signals continue to arrive.
+        connect(&settings,&TrackerSettings::ppmOutChanged,this,
+            [this](int tilt,int roll,int pan) {
+                const int packet[3]={pan,tilt,roll};
+                for(int i=0;i<3;++i) {
+                    latestOutput[i]=packet[i];
+                    receivedOutput[i]=true;
+                }
+                preview->setActualOutput(latestOutput[selected]);
+            });
         for (QSpinBox *spin : {expo,deadLow,deadHigh,center,minimum,maximum}) {
             connect(spin,qOverload<int>(&QSpinBox::valueChanged),this,
                     [this](int){ changed(); });
@@ -173,6 +189,8 @@ private:
     QLabel *chartTitle=nullptr;
     int selected=0;
     bool loading=false;
+    int latestOutput[3]={1500,1500,1500};
+    bool receivedOutput[3]={false,false,false};
 
     void selectAxis(int index) {
         if (index<0||index>2||loading) return;
@@ -219,5 +237,7 @@ private:
         preview->setCurve(d.expo,static_cast<uint16_t>(d.center),
             static_cast<uint16_t>(d.minimum),static_cast<uint16_t>(d.maximum),
             static_cast<uint16_t>(d.deadLow),static_cast<uint16_t>(d.deadHigh));
+        if(receivedOutput[selected]) preview->setActualOutput(latestOutput[selected]);
+        else preview->clearActualOutput();
     }
 };
