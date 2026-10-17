@@ -30,12 +30,12 @@ jobs:
           . /root/zephyr_py_env/.venv/bin/activate
           export ZEPHYR_BASE=/root/zephyr/zephyr
           cd /root/zephyr-sdk && ./setup.sh -c
-          cd /src/HT/firmware/src
-          mkdir -p /src/firmwares
+          cd "$GITHUB_WORKSPACE/HT/firmware/src"
+          mkdir -p "$GITHUB_WORKSPACE/firmwares"
           west build -p always -b arduino_nano_33_ble
-          cp build/zephyr/zephyr.bin /src/firmwares/Nano33BLE.bin
+          cp build/zephyr/zephyr.bin "$GITHUB_WORKSPACE/firmwares/Nano33BLE.bin"
           west build -p always -b arduino_nano_33_ble -- -DBOARD_REV2=y
-          cp build/zephyr/zephyr.bin /src/firmwares/Nano33BLE-Rev2.bin
+          cp build/zephyr/zephyr.bin "$GITHUB_WORKSPACE/firmwares/Nano33BLE-Rev2.bin"
       - uses: actions/upload-artifact@v4
         with:
           name: HeadTracker-Expo-Firmwares
@@ -62,14 +62,14 @@ jobs:
           target: desktop
           arch: win64_mingw
           modules: qtserialport
-      - uses: egor-tensin/setup-mingw@v2
-        with:
-          platform: x64
+          tools: 'tools_mingw90,qt.tools.win64_mingw900'
       - name: Compile Qt
         shell: pwsh
         run: |
           python modification/appliquer_expo_gui.py HT
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          g++ --version
+          mingw32-make --version
           Push-Location HT/gui/src
           qmake HeadTracker.pro
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
