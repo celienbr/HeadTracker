@@ -1,3 +1,18 @@
+# HeadTracker Expo Courbes — réglages numériques et graphique
+
+**Nouvelle application expérimentale** : s'installe séparément de « HeadTracker Expo Deadzone » et de « HeadTracker Expo ».
+
+- Cliquer **une fois** sur chacune des deux poignées ambrées de la zone morte ouvre le **même éditeur jaune à saisie numérique** que pour le centre rouge. Déplacer la poignée à la souris reste possible.
+- Dans **Expo / Courbes…**, choisir Pan, Tilt ou Roll dans la liste. La courbe bleue correspond au calcul du firmware (Expo et zone morte), les tirets gris représentent la réponse linéaire et la bande ambre matérialise la zone morte.
+- Le graphique suit immédiatement les changements du réglage Expo. Il reprend les valeurs actuelles du centre, des butées et des deux zones mortes pour chaque axe au moment de l'ouverture de la fenêtre.
+- Le graphique est seulement une **prévisualisation**, pas une acquisition de mouvements en direct.
+- Valider avec OK, puis **Save Settings** pour enregistrer. Annuler ne modifie rien.
+- Aucun changement du protocole ni de la logique du firmware par rapport à la version « expo-deadzone » : uniquement l'interface et le graphique.
+
+**Sécurité :** conserver une sauvegarde des paramètres et tester la carte ainsi que toutes les liaisons sur banc avant utilisation sur le planeur.
+
+---
+
 # HeadTracker v2.40 Expo + Deadzone — version experimentale
 
 **Cette version s'installe séparément de HeadTracker Expo.** Le logiciel et le firmware originaux de la branche `expo-v2.40` restent disponibles sans modification.
