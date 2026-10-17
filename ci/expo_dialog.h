@@ -182,6 +182,10 @@ private:
     void loadFields() {
         loading=true;
         const AxisDraft &d=drafts[selected];
+        // Reset axis-specific constraints before loading another axis.
+        center->setRange(TrackerSettings::MIN_CNT,TrackerSettings::MAX_CNT);
+        deadLow->setMaximum(250);
+        deadHigh->setMaximum(250);
         expo->setValue(d.expo);
         minimum->setValue(d.minimum);
         maximum->setValue(d.maximum);
